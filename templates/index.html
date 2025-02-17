@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message-enter {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 h-screen flex">
+    <!-- 侧边栏 -->
+    <div class="w-64 bg-white border-r flex flex-col">
+        <div class="p-4 border-b">
+            <button onclick="newChat()" class="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center">
+                <i class="ri-add-line mr-2"></i>新对话
+            </button>
+        </div>
+        <div id="conversation-list" class="flex-1 overflow-y-auto p-2 space-y-1">
+            <!-- 对话项通过JS动态加载 -->
+        </div>
+    </div>
+
+    <!-- 主聊天区域 -->
+    <div class="flex-1 flex flex-col">
+        <!-- 导航栏 -->
+        <nav class="bg-white border-b p-4 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="ri-robot-2-line text-blue-500 text-xl"></i>
+                <h1 class="text-lg font-semibold">智能助手</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button class="hover:bg-gray-100 p-2 rounded">
+                    <i class="ri-user-line"></i>
+                </button>
+                <button class="hover:bg-gray-100 p-2 rounded">
+                    <i class="ri-settings-3-line"></i>
+                </button>
+            </div>
+        </nav>
+
+        <!-- 聊天内容容器 -->
+        <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+
+        <!-- 输入区域 -->
+        <div class="border-t bg-white p-4">
+            <div class="max-w-3xl mx-auto relative">
+                <div class="flex items-center space-x-2 mb-2">
+                    <input type="file" id="file-upload" class="hidden" accept=".pdf,.doc,.docx">
+                    <label for="file-upload" class="cursor-pointer text-gray-500 hover:text-blue-500 p-2">
+                        <i class="ri-file-upload-line"></i>
+                    </label>
+                    <span id="file-name" class="text-sm text-gray-500"></span>
+                </div>
+                <div class="relative">
+                    <textarea id="message-input" rows="2" 
+                        class="w-full p-3 pr-12 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        placeholder="输入消息..."></textarea>
+                    <button onclick="sendMessage()" 
+                        class="absolute bottom-2 right-2 bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg">
+                        <i class="ri-send-plane-2-line"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 错误处理函数
+        function showError(message) {
+            alert(`错误: ${message}`);
+        }
+
+        // 新建对话
+        function newChat() {
+            currentConversationId = null;
+            document.getElementById('chat-container').innerHTML = '';
+            document.getElementById('message-input').value = '';
+            document.getElementById('file-upload').value = '';
+            document.getElementById('file-name').textContent = '';
+        }
+
+        // 发送消息
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            const fileInput = document.getElementById('file-upload');
+            
+            if (!message && !fileInput.files[0]) {
+                showError('消息内容或文件不能为空');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('message', message);
+            formData.append('conversation_id', currentConversationId || '');
+            
+            if (fileInput.files[0]) {
+                formData.append('file', fileInput.files[0]);
+            }
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error('发送失败');
+                }
+                
+                const result = await response.json();
+                currentConversationId = result.conversation_id;
+                input.value = '';
+                fileInput.value = '';
+                document.getElementById('file-name').textContent = '';
+                await loadConversations();
+                await loadConversation(currentConversationId);
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        let currentConversationId = null;
+
+        async function loadConversations() {
+            try {
+                const res = await fetch('/conversations');
+                const conversations = await res.json();
+                const list = document.getElementById('conversation-list');
+                list.innerHTML = conversations.map(conv => `
+                    <div class="p-2 hover:bg-gray-100 rounded cursor-pointer ${currentConversationId === conv.id ? 'bg-blue-50' : ''}"
+                         onclick="loadConversation(${conv.id})">
+                        <div class="text-sm truncate">${conv.title}</div>
+                        <div class="text-xs text-gray-500">${new Date(conv.created_at).toLocaleDateString()}</div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                showError('加载对话列表失败');
+            }
+        }
+
+        // 保持原有loadConversation、sendMessage等函数逻辑不变
+        // 仅在消息渲染部分调整HTML结构以匹配新样式
+        async function loadConversation(conversationId) {
+            currentConversationId = conversationId;
+            try {
+                const res = await fetch(`/conversations/${conversationId}`);
+                const messages = await res.json();
+                const container = document.getElementById('chat-container');
+                container.innerHTML = messages.map(msg => `
+                    <div class="message-enter flex ${msg.is_user ? 'justify-end' : 'justify-start'}">
+                        <div class="max-w-2xl ${msg.is_user ? 'bg-blue-100' : 'bg-white border'} p-4 rounded-lg">
+                            ${msg.file_path ? `
+                                <div class="text-sm text-gray-500 mb-2 flex items-center">
+                                    <i class="ri-file-line mr-1"></i>
+                                    ${msg.file_path.split('/').pop()}
+                                </div>` : ''}
+                            <div class="whitespace-pre-wrap">${msg.content}</div>
+                            <div class="mt-2 text-xs text-gray-400">
+                                ${new Date(msg.timestamp).toLocaleString()}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                container.scrollTop = container.scrollHeight;
+            } catch (error) {
+                showError('加载对话失败');
+            }
+        }
+
+        // 初始化加载
+        window.onload = async () => {
+            await loadConversations();
+            if (currentConversationId) {
+                await loadConversation(currentConversationId);
+            }
+        };
+    </script>
+</body>
+</html>
