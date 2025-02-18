@@ -88,6 +88,23 @@
             document.getElementById('file-name').textContent = '';
         }
 
+            // 调用后端创建新的对话
+        fetch('/chat', {
+            method: 'POST',
+            // 发送空表单以创建新的对话线程
+            body: new FormData()
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentConversationId = data.conversation_id;
+                    loadConversation(currentConversationId);
+                }
+            })
+            .catch(error => {
+                showError("新建对话失败");
+            })
+
         // 发送消息
         async function sendMessage() {
             const input = document.getElementById('message-input');
@@ -136,10 +153,11 @@
                 const res = await fetch('/conversations');
                 const conversations = await res.json();
                 const list = document.getElementById('conversation-list');
+
                 list.innerHTML = conversations.map(conv => `
                     <div class="p-2 hover:bg-gray-100 rounded cursor-pointer ${currentConversationId === conv.id ? 'bg-blue-50' : ''}"
-                         onclick="loadConversation(${conv.id})">
-                        <div class="text-sm truncate">${conv.title}</div>
+                         onclick="loadConversation(${conv.id})"> <!--使用conv.id-->
+                        <div class="text-sm truncate">${conv.title || '未命名对话'}</div>  <!-- 默认显示 '未命名对话' -->
                         <div class="text-xs text-gray-500">${new Date(conv.created_at).toLocaleDateString()}</div>
                     </div>
                 `).join('');
@@ -147,6 +165,7 @@
                 showError('加载对话列表失败');
             }
         }
+
 
         // 保持原有loadConversation、sendMessage等函数逻辑不变
         // 仅在消息渲染部分调整HTML结构以匹配新样式

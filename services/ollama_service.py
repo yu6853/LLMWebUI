@@ -94,7 +94,7 @@ class OllamaService:
                 f"{self.base_url}/api/generate",
                 json={
                     "model": "deepseek-r1:1.5b",
-                    "prompt": f"请基于以下上下文用中文回答，保持自然对话风格：\n【相关上下文】\n{context_block}\n\n【用户问题】{prompt}\n【回答要求】用markdown格式，包含必要的信息来源说明",
+                    "prompt": f"请基于以下上下文用中文回答：\n【相关上下文】\n{context_block}\n\n【用户问题】{prompt}\n【回答要求】用markdown格式，包含必要的信息来源说明",
                     "stream": False
                 },
                 timeout=30

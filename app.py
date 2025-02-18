@@ -74,14 +74,26 @@ def logout():
 @AuthService.login_required
 def get_conversations():
     user = AuthService.get_current_user()
+    # conversations = db.session.query(
+    #     Message.conversation_id,
+    #     db.func.max(Message.timestamp).label('last_activity'),
+    #     db.func.count(Message.id).label('message_count')
+    # ).filter_by(user_id=user.id).group_by(Message.conversation_id).all()
+
     conversations = db.session.query(
-        Message.conversation_id,
+        ConversationThread.id,
+        ConversationThread.title,
+        ConversationThread.created_at,
         db.func.max(Message.timestamp).label('last_activity'),
         db.func.count(Message.id).label('message_count')
+    ).join(
+        Message, Message.conversation_id == ConversationThread.id
     ).filter_by(user_id=user.id).group_by(Message.conversation_id).all()
 
     return jsonify([{
-        'id': conv.conversation_id,
+        'id': conv.id,
+        'title': conv.title,
+        'created_at': conv.created_at.isoformat(),
         'last_activity': conv.last_activity.isoformat(),
         'message_count': conv.message_count
     } for conv in conversations])
@@ -105,7 +117,20 @@ def chat():
     user = AuthService.get_current_user()
 
     # 获取或创建会话ID
-    conversation_id = request.form.get('conversation_id') or str(uuid.uuid4())
+    # conversation_id = request.form.get('conversation_id') or str(uuid.uuid4())
+    if not request.form.get('conversation_id'):
+        conversation_thread = ConversationThread(
+            title = "新对话",
+            user_id = user.id,
+        )
+
+        # 新建对话线程并提交到数据库
+        db.session.add(conversation_thread)
+        db.session.commit()
+        conversation_id = conversation_thread.id
+    else:
+        # 使用现有会话id
+        conversation_id = int(request.form.get('conversation_id'))
 
     # 获取消息内容
     message_content = request.form.get('message', '')
