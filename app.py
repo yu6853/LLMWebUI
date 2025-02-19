@@ -74,11 +74,7 @@ def logout():
 @AuthService.login_required
 def get_conversations():
     user = AuthService.get_current_user()
-    # conversations = db.session.query(
-    #     Message.conversation_id,
-    #     db.func.max(Message.timestamp).label('last_activity'),
-    #     db.func.count(Message.id).label('message_count')
-    # ).filter_by(user_id=user.id).group_by(Message.conversation_id).all()
+
 
     conversations = db.session.query(
         ConversationThread.id,
@@ -182,6 +178,26 @@ def chat():
         "user_message": user_message.to_dict(),
         "model_response": ai_message.to_dict()
     })
+
+# 删除对话
+@app.route('/delete_conversation/<int:conversation_id>', methods=['DELETE'])
+@AuthService.login_required
+def delete_conversation(conversation_id):
+    user = AuthService.get_current_user()
+
+    # 获取并删除对话及相关消息
+    conversation = ConversationThread.query.filter_by(id=conversation_id, user_id=user.id).first()
+
+    if not conversation:
+        return jsonify({"error": "对话不存在或无权限删除"}), 404
+
+    # 删除与对话相关的消息
+    Message.query.filter_by(conversation_id=conversation_id).delete()
+    db.session.delete(conversation)
+    db.session.commit()
+
+    return jsonify({"success": True})
+
 
 if __name__ == '__main__':
     app.run(debug=True)

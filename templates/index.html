@@ -14,6 +14,15 @@
         .message-enter {
             animation: fadeIn 0.3s ease-out;
         }
+
+        /* 控制垃圾桶按钮显示 */
+        .trash-btn {
+            display: none;
+        }
+
+        .conversation-item:hover .trash-btn {
+            display: block;
+        }
     </style>
 </head>
 <body class="bg-gray-50 h-screen flex">
@@ -73,7 +82,94 @@
         </div>
     </div>
 
+    <!-- 删除对话的确认框 -->
+    <div id="delete-modal" class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 hidden">
+        <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+            <h2 id="modal-title" class="text-lg font-semibold mb-4">确认删除</h2>
+            <p id="modal-content">您确定要删除此对话吗？</p>
+            <div class="flex justify-between mt-4">
+                <button id="delete-confirm" class="bg-red-500 text-white px-4 py-2 rounded-lg">删除</button>
+                <button id="delete-cancel" class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg">取消</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        let currentConversationIdToDelete = null;  // 用于存储需要删除的对话ID
+
+        // 加载对话列表
+        async function loadConversations() {
+            try {
+                const res = await fetch('/conversations');
+                const conversations = await res.json();
+                const list = document.getElementById('conversation-list');
+
+                list.innerHTML = conversations.map(conv => `
+                <div class="conversation-item p-2 hover:bg-gray-100 rounded cursor-pointer relative" onclick="loadConversation(${conv.id})">
+                    <div class="text-sm truncate">${conv.title || '未命名对话'}</div>
+                    <div class="text-xs text-gray-500">${formatDateTime(new Date(conv.created_at))}</div>  <!-- 格式化日期和时间 -->
+                    <!-- 垃圾箱按钮 -->
+                    <button class="absolute top-2 right-2 text-red-500 hover:text-red-600 trash-btn" onclick="openDeleteModal(${conv.id}, '${conv.title}')">
+                        <i class="ri-delete-bin-line"></i>
+                    </button>
+                </div>
+            `).join('');
+            } catch (error) {
+                showError('加载对话列表失败');
+            }
+        }
+
+        // 打开删除对话的确认框
+        function openDeleteModal(conversationId, conversationTitle) {
+            currentConversationIdToDelete = conversationId;
+            document.getElementById('modal-title').textContent = `确认删除 "${conversationTitle}" 对话?`;
+            document.getElementById('delete-modal').classList.remove('hidden');
+        }
+
+        // 关闭删除对话的确认框
+        document.getElementById('delete-cancel').onclick = function() {
+            document.getElementById('delete-modal').classList.add('hidden');
+        }
+
+        // 确认删除
+        document.getElementById('delete-confirm').onclick = async function() {
+            try {
+                const response = await fetch(`/delete_conversation/${currentConversationIdToDelete}`, {
+                    method: 'DELETE',
+                });
+
+                if (!response.ok) {
+                    throw new Error('删除失败');
+                }
+
+                // 从侧边栏中删除该对话项
+                const list = document.getElementById('conversation-list');
+                const itemToDelete = list.querySelector(`[data-id="${currentConversationIdToDelete}"]`);
+                if (itemToDelete) {
+                    itemToDelete.remove();
+                }
+
+                // 关闭对话框
+                document.getElementById('delete-modal').classList.add('hidden');
+
+                // 刷新对话列表
+                await loadConversations();
+            } catch (error) {
+                showError('删除对话失败');
+            }
+        }
+
+        // 精确显示日期
+        function formatDateTime(date) {
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+
+        return `${year}-${month}-${day} ${hours}:${minutes}`;
+    }
+
         // 错误处理函数
         function showError(message) {
             alert(`错误: ${message}`);
@@ -143,26 +239,6 @@
                 await loadConversation(currentConversationId);
             } catch (error) {
                 showError(error.message);
-            }
-        }
-
-        let currentConversationId = null;
-
-        async function loadConversations() {
-            try {
-                const res = await fetch('/conversations');
-                const conversations = await res.json();
-                const list = document.getElementById('conversation-list');
-
-                list.innerHTML = conversations.map(conv => `
-                    <div class="p-2 hover:bg-gray-100 rounded cursor-pointer ${currentConversationId === conv.id ? 'bg-blue-50' : ''}"
-                         onclick="loadConversation(${conv.id})"> <!--使用conv.id-->
-                        <div class="text-sm truncate">${conv.title || '未命名对话'}</div>  <!-- 默认显示 '未命名对话' -->
-                        <div class="text-xs text-gray-500">${new Date(conv.created_at).toLocaleDateString()}</div>
-                    </div>
-                `).join('');
-            } catch (error) {
-                showError('加载对话列表失败');
             }
         }
 
