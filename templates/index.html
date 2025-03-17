@@ -23,6 +23,24 @@
         .conversation-item:hover .trash-btn {
             display: block;
         }
+
+        /* 样式 */
+        .file-tag {
+            display: inline-flex;
+            align-items: center;
+            background-color: #e0e0e0;
+            border-radius: 8px;
+            margin-right: 8px;
+            padding: 4px 10px;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .file-tag i {
+            cursor: pointer;
+            margin-left: 5px;
+            color: red;
+        }
     </style>
 </head>
 <body class="bg-gray-50 h-screen flex">
@@ -63,11 +81,22 @@
         <div class="border-t bg-white p-4">
             <div class="max-w-3xl mx-auto relative">
                 <div class="flex items-center space-x-2 mb-2">
-                    <input type="file" id="file-upload" class="hidden" accept=".pdf,.doc,.docx">
-                    <label for="file-upload" class="cursor-pointer text-gray-500 hover:text-blue-500 p-2">
-                        <i class="ri-file-upload-line"></i>
-                    </label>
-                    <span id="file-name" class="text-sm text-gray-500"></span>
+
+                    <!-- 文件上传部分-->
+{#                    <input type="file" id="file-upload" class="hidden" accept=".pdf,.doc,.docx">#}
+{#                    <label for="file-upload" class="cursor-pointer text-gray-500 hover:text-blue-500 p-2">#}
+{#                        <i class="ri-file-upload-line"></i>#}
+{#                    </label>#}
+{#                    <span id="file-name" class="text-sm text-gray-500"></span>#}
+
+                    <!--文件上传部分-->
+                    <form id="file-upload-form" action="/chat" method="POST" enctype="multipart/form-data">
+                        <input type="file" name="file" id="file-upload" class="hidden" accept=".pdf,.doc,.docx">
+                        <label for="file-upload" class="cursor-pointer text-gray-500 hover:text-blue-500 p-2">
+                            <i class="ri-file-upload-line"></i>
+                        </label>
+                        <span id="file-name" class="text-sm text-gray-500"></span>
+                    </form>
                 </div>
                 <div class="relative">
                     <textarea id="message-input" rows="2" 
@@ -215,7 +244,8 @@
             const formData = new FormData();
             formData.append('message', message);
             formData.append('conversation_id', currentConversationId || '');
-            
+
+            // 处理文件上传
             if (fileInput.files[0]) {
                 formData.append('file', fileInput.files[0]);
             }

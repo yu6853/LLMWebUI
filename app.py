@@ -1,13 +1,14 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
-from werkzeug.utils import secure_filename
 from flask_migrate import Migrate
-import os
-import uuid
+from werkzeug.utils import secure_filename
+
 from services.ollama_service import OllamaService
+from services.file_service import process_file
 from models.user import db, User
 from models.message import Message, ConversationThread
 from services.auth_service import AuthService
-from datetime import datetime
+import os
+
 
 app = Flask(__name__, static_folder='static')
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-key-' + os.urandom(16).hex())
@@ -20,7 +21,9 @@ app.config.update(
 ollama = OllamaService()
 
 # 确保上传目录存在
-os.makedirs('uploads', exist_ok=True)
+UPLOAD_FOLDER = 'uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 
 # 数据库配置
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)),
@@ -113,7 +116,6 @@ def chat():
     user = AuthService.get_current_user()
 
     # 获取或创建会话ID
-    # conversation_id = request.form.get('conversation_id') or str(uuid.uuid4())
     if not request.form.get('conversation_id'):
         conversation_thread = ConversationThread(
             title = "新对话",
@@ -131,14 +133,25 @@ def chat():
     # 获取消息内容
     message_content = request.form.get('message', '')
 
-    # 处理文件上传
+    # 解析文件路径
     file_path = None
     if 'file' in request.files:
         file = request.files['file']
         if file.filename != '':
             filename = secure_filename(file.filename)
-            file_path = os.path.join('uploads', filename)
+            file_path = os.path.join(UPLOAD_FOLDER, filename)
             file.save(file_path)
+            print(f"上传的文件名:{file.filename}")
+
+    # 处理上传的文件
+    file_text = None
+    if 'file' in request.files:
+        file = request.files['file']
+        file_text = process_file(file)  # 提取文件内容
+
+    # 如果文件有内容，使用文件内容作为输入消息
+    if file_text:
+        message_content = file_text  # 更新消息内容为文件内容
 
     # 保存用户消息
     user_message = Message(
@@ -148,8 +161,12 @@ def chat():
         conversation_id=conversation_id,
         file_path=file_path
     )
-    db.session.add(user_message)
-    db.session.commit()
+
+    # 确保没有重复对象
+    existing_message = Message.query.filter_by(content=message_content, conversation_id=conversation_id).first()
+    if not existing_message:
+        db.session.add(user_message)
+        db.session.commit()
 
     # 获取模型响应
     model_response = ollama.generate_response(
@@ -200,4 +217,4 @@ def delete_conversation(conversation_id):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
